@@ -66,20 +66,27 @@ function MahasiswaRequestContent() {
         if (req.needsFile && files[req.id]) {
           const formData = new FormData();
           formData.append("file", files[req.id]);
-          await fetch(`/api/upload?reqId=${req.id}&requestId=${request.id}`, {
+          formData.append("requestId", request.id.toString());
+          formData.append("requirementId", req.id.toString());
+
+          const uploadRes = await fetch("/api/upload", {
             method: "POST",
             body: formData
           });
+
+          if (!uploadRes.ok) {
+            throw new Error(`Upload gagal untuk ${req.name}`);
+          }
         }
       }
 
-      alert("Request berhasil dibuat! Menunggu approval dosen pembimbing.");
+      alert("✅ Pengajuan berhasil! Menunggu approval dosen pembimbing.");
       // Reset form
       setSelectedType(null);
       setRequirements([]);
       setFiles({});
-    } catch (error) {
-      alert("Terjadi kesalahan. Silakan coba lagi.");
+    } catch (error: any) {
+      alert(`❌ Error: ${error.message || 'Terjadi kesalahan'}`);
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -162,14 +169,7 @@ function MahasiswaRequestContent() {
               onClick={submitRequest}
               disabled={isSubmitting || requirements.length === 0}
             >
-              {isSubmitting ? (
-                <>
-                  <span className="loading loading-spinner"></span>
-                  Loading...
-                </>
-              ) : (
-                "Submit Pengajuan"
-              )}
+              {isSubmitting ? "⏳ Mengirim..." : "🚀 Submit Pengajuan"}
             </button>
           </div>
         )}

@@ -1,53 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { join, extname } from "path";
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    const reqId = req.nextUrl.searchParams.get("reqId");
-    const requestId = req.nextUrl.searchParams.get("requestId");
+    const requestId = formData.get("requestId") as string;
+    const requirementId = formData.get("requirementId") as string;
 
     if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+      return NextResponse.json({ error: "File tidak ditemukan" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Ensure upload directory exists
-    const uploadDir = join(process.cwd(), "public", "uploads", requestId as string);
+    // Validasi folder
+    const uploadDir = join(process.cwd(), "public", "uploads", requestId);
     await mkdir(uploadDir, { recursive: true });
 
-    // Create safe filename
-    const timestamp = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filename = `${reqId}_${timestamp}_${safeName}`;
-    const filePath = join(uploadDir, filename);
+    // Generate safe filename
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const fileExt = extname(file.name);
+    const fileName = `${requirementId}_${randomBytes(8).toString('hex')}${fileExt}`;
+    const filePath = join(uploadDir, fileName);
 
+    // Simpan file
     await writeFile(filePath, buffer);
 
-    // Update database
+    // Simpan ke DB
     await prisma.requirementFulfillment.create({
       data: {
         requestId: Number(requestId),
-        requirementId: Number(reqId),
+        requirementId: Number(requirementId),
         isConfirmed: true,
-        fileUrl: `/uploads/${requestId}/${filename}`
+        fileUrl: `/uploads/${requestId}/${fileName}`
       }
     });
 
     return NextResponse.json({
       success: true,
-      path: `/uploads/${requestId}/${filename}`
+      path: `/uploads/${requestId}/${fileName}`
     });
+
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json(
-      { error: "Failed to upload file" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Upload gagal" }, { status: 500 });
   }
 }
