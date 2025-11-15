@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   // 'admin', 'akademik', 'dosen', 'mahasiswa'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  requestsStudent    Request[] @relation("StudentRequests")
+  approvals          Approval[]
+  requirementFulfills RequirementFulfillment[] @relation("ConfirmUser")
+  revisiNotes        RevisiNote[] @relation("DosenRevisi")
+
+  @@map("users")
+}
+
+model SidangType {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique // 'Skripsi', 'Seminar', 'Job Training', 'Wisuda'
+  isActive Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  workflowSteps WorkflowStep[]
+  requirements Requirement[]
+  requests     Request[]
+
+  @@map("sidang_types")
+}
+
+model WorkflowStep {
+  id           Int      @id @default(autoincrement())
+  sidangTypeId Int      @map("sidang_type_id")
+  stepOrder    Int      @map("step_order")
+  role         String   // 'dosen_pembimbing_1', 'perpustakaan', 'akademik', etc.
+  description  String?
+
+  // Relations
+  sidangType SidangType @relation(fields: [sidangTypeId], references: [id], onDelete: Cascade)
+  approvals  Approval[]
+  requests   Request[]
+
+  @@unique([sidangTypeId, stepOrder])
+  @@map("workflow_steps")
+}
+
+model Requirement {
+  id           Int      @id @default(autoincrement())
+  role         String   // 'perpustakaan', 'akademik'
+  sidangTypeId Int      @map("sidang_type_id")
+  name         String   // 'Turnitin', 'Bebas Pustaka'
+  description  String?
+  needsFile    Boolean  @default(false) @map("needs_file")
+
+  // Relations
+  sidangType SidangType @relation(fields: [sidangTypeId], references: [id], onDelete: Cascade)
+  fulfillments RequirementFulfillment[]
+
+  @@map("requirements")
+}
+
+model Request {
+  id           Int      @id @default(autoincrement())
+  mahasiswaId  Int      @map("mahasiswa_id")
+  sidangTypeId Int      @map("sidang_type_id")
+  currentStepId Int?    @map("current_step_id")
+  status       String   @default("pending") // pending, approved, rejected, on_revision, done
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  mahasiswa      User @relation("StudentRequests", fields: [mahasiswaId], references: [id])
+  sidangType     SidangType @relation(fields: [sidangTypeId], references: [id])
+  currentStep    WorkflowStep? @relation(fields: [currentStepId], references: [id])
+  approvals      Approval[]
+  fulfillments   RequirementFulfillment[]
+  revisiNotes    RevisiNote[]
+
+  @@map("requests")
+}
+
+model RequirementFulfillment {
+  id            Int      @id @default(autoincrement())
+  requestId     Int      @map("request_id")
+  requirementId Int      @map("requirement_id")
+  isConfirmed   Boolean  @default(false) @map("is_confirmed")
+  fileUrl       String?  @map("file_url")
+  confirmedBy   Int?     @map("confirmed_by")
+  confirmedAt   DateTime? @map("confirmed_at")
+
+  // Relations
+  request     Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requirement Requirement @relation(fields: [requirementId], references: [id])
+  confirmer   User? @relation("ConfirmUser", fields: [confirmedBy], references: [id])
+
+  @@map("requirement_fulfillments")
+}
+
+model Approval {
+  id         Int      @id @default(autoincrement())
+  requestId  Int      @map("request_id")
+  stepId     Int      @map("step_id")
+  approvedBy Int      @map("approved_by")
+  action     String   // 'approve', 'reject'
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  step      WorkflowStep @relation(fields: [stepId], references: [id])
+  approver  User @relation(fields: [approvedBy], references: [id])
+
+  @@map("approvals")
+}
+
+model RevisiNote {
+  id        Int      @id @default(autoincrement())
+  requestId Int      @map("request_id")
+  dosenId   Int      @map("dosen_id")
+  catatan   String
+  fileUrl   String?  @map("file_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  dosen   User @relation("DosenRevisi", fields: [dosenId], references: [id])
+
+  @@map("revisi_notes")
+}
