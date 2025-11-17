@@ -1,0 +1,9 @@
+This is an invalid file type for testing.
+Text files (.txt) should be rejected by the upload validator.
+Only PDF, DOC, DOCX, JPG, JPEG, PNG, and ZIP files are allowed.
+
+This file is used to test the file type validation in:
+- FileUploadWithPreview component
+- Upload API endpoint (/api/upload)
+
+Expected behavior: Upload should fail with error message about unsupported file type.
