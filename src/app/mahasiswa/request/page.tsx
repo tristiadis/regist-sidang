@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
+import { showSuccess, showError } from "@/lib/toast";
 
 function MahasiswaRequestContent() {
   const [sidangTypes, setSidangTypes] = useState<any[]>([]);
@@ -40,7 +41,7 @@ function MahasiswaRequestContent() {
     // Validate required files
     for (const req of requirements) {
       if (req.needsFile && !files[req.id]) {
-        alert(`File untuk persyaratan "${req.name}" wajib diupload`);
+        showError(`File untuk persyaratan "${req.name}" wajib diupload`);
         return;
       }
     }
@@ -80,13 +81,13 @@ function MahasiswaRequestContent() {
         }
       }
 
-      alert("✅ Pengajuan berhasil! Menunggu approval dosen pembimbing.");
+      showSuccess("Pengajuan berhasil! Menunggu approval dosen pembimbing.");
       // Reset form
       setSelectedType(null);
       setRequirements([]);
       setFiles({});
     } catch (error: any) {
-      alert(`❌ Error: ${error.message || 'Terjadi kesalahan'}`);
+      showError(error.message || 'Terjadi kesalahan saat submit pengajuan');
       console.error(error);
     } finally {
       setIsSubmitting(false);

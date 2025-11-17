@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import RevisiInputModal from "@/components/RevisiInputModal";
+import { showSuccess, showError } from "@/lib/toast";
 
 function DosenApprovalContent() {
   const { data: session } = useSession();
@@ -36,7 +37,7 @@ function DosenApprovalContent() {
     const notes = action === 'reject' ? prompt('Catatan penolakan:') : '';
 
     if (action === 'reject' && !notes) {
-      alert('Catatan penolakan harus diisi');
+      showError('Catatan penolakan harus diisi');
       return;
     }
 
@@ -47,10 +48,10 @@ function DosenApprovalContent() {
     });
 
     if (res.ok) {
-      alert(`✅ Berhasil ${action === 'approve' ? 'menyetujui' : 'menolak'}`);
+      showSuccess(`Berhasil ${action === 'approve' ? 'menyetujui' : 'menolak'} permintaan`);
       fetchPendingRequests();
     } else {
-      alert('❌ Gagal memproses');
+      showError('Gagal memproses permintaan');
     }
   };
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
+import { showError } from "@/lib/toast";
 
 function WorkflowBuilderContent() {
   const [sidangTypes, setSidangTypes] = useState<any[]>([]);
@@ -30,7 +31,7 @@ function WorkflowBuilderContent() {
 
   const addStep = async () => {
     if (!newStepRole) {
-      alert("Mohon isi role terlebih dahulu");
+      showError("Mohon isi role terlebih dahulu");
       return;
     }
 

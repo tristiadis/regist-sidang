@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
+import { showSuccess, showError } from "@/lib/toast";
 
 function ApprovalDashboardContent() {
   const { data: session } = useSession();
@@ -33,17 +34,17 @@ function ApprovalDashboardContent() {
       });
 
       if (res.ok) {
-        alert(
+        showSuccess(
           action === 'approve'
             ? "Request berhasil disetujui"
             : "Request berhasil ditolak"
         );
         fetchPendingRequests();
       } else {
-        alert("Terjadi kesalahan");
+        showError("Terjadi kesalahan");
       }
     } catch (error) {
-      alert("Terjadi kesalahan");
+      showError("Terjadi kesalahan");
       console.error(error);
     }
   };

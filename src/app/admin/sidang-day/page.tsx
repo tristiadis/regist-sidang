@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
+import { showSuccess, showError } from "@/lib/toast";
 
 function AdminSidangDayContent() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -26,10 +27,10 @@ function AdminSidangDayContent() {
     });
 
     if (res.ok) {
-      alert("✅ Status berhasil diupdate");
+      showSuccess("Status berhasil diupdate");
       fetchWaitingAdmin();
     } else {
-      alert("❌ Gagal update status");
+      showError("Gagal update status");
     }
   };
 
@@ -105,10 +106,10 @@ function SidangBerlangsungList() {
     });
 
     if (res.ok) {
-      alert("✅ Sidang berhasil ditandai selesai");
+      showSuccess("Sidang berhasil ditandai selesai");
       fetchSidangBerlangsung();
     } else {
-      alert("❌ Gagal update status");
+      showError("Gagal update status");
     }
   };
 

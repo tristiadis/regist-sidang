@@ -86,16 +86,16 @@ function AdminDashboardContent() {
   const ditolak = requests.filter(r => r.status === "rejected").length;
 
   return (
-    <div className="min-h-screen bg-purple-50 p-6">
+    <div className="min-h-screen bg-purple-50 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-purple-600 mb-6">Dashboard Laporan Sidang</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-purple-600 mb-4 sm:mb-6">Dashboard Laporan Sidang</h1>
 
         {/* Filter Section */}
         <div className="card bg-white shadow-xl mb-6">
           <div className="card-body p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <select
-                className="select select-bordered"
+                className="select select-bordered select-sm sm:select-md"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               >
@@ -110,13 +110,13 @@ function AdminDashboardContent() {
 
               <input
                 type="date"
-                className="input input-bordered"
+                className="input input-bordered input-sm sm:input-md"
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
               />
 
               <button
-                className="btn btn-primary bg-purple-600 md:col-span-2"
+                className="btn btn-primary bg-purple-600 btn-sm sm:btn-md sm:col-span-2 md:col-span-2"
                 onClick={exportExcel}
                 disabled={filteredRequests.length === 0}
               >
@@ -127,22 +127,22 @@ function AdminDashboardContent() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="stat bg-white shadow-xl rounded-lg p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
             <div className="stat-title text-xs">Total Request</div>
-            <div className="stat-value text-purple-600 text-3xl">{totalRequests}</div>
+            <div className="stat-value text-purple-600 text-2xl sm:text-3xl">{totalRequests}</div>
           </div>
-          <div className="stat bg-white shadow-xl rounded-lg p-4">
+          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
             <div className="stat-title text-xs">Sidang Berlangsung</div>
-            <div className="stat-value text-yellow-600 text-3xl">{sidangBerlangsung}</div>
+            <div className="stat-value text-yellow-600 text-2xl sm:text-3xl">{sidangBerlangsung}</div>
           </div>
-          <div className="stat bg-white shadow-xl rounded-lg p-4">
+          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
             <div className="stat-title text-xs">Selesai</div>
-            <div className="stat-value text-green-600 text-3xl">{selesai}</div>
+            <div className="stat-value text-green-600 text-2xl sm:text-3xl">{selesai}</div>
           </div>
-          <div className="stat bg-white shadow-xl rounded-lg p-4">
+          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
             <div className="stat-title text-xs">Ditolak</div>
-            <div className="stat-value text-red-600 text-3xl">{ditolak}</div>
+            <div className="stat-value text-red-600 text-2xl sm:text-3xl">{ditolak}</div>
           </div>
         </div>
 
@@ -153,10 +153,10 @@ function AdminDashboardContent() {
           </div>
         ) : (
           <div className="card bg-white shadow-xl">
-            <div className="card-body">
-              <h2 className="card-title mb-4">Daftar Request</h2>
-              <div className="overflow-x-auto">
-                <table className="table w-full">
+            <div className="card-body p-2 sm:p-6">
+              <h2 className="card-title mb-4 px-2 sm:px-0">Daftar Request</h2>
+              <div className="overflow-x-auto -mx-2 sm:mx-0">
+                <table className="table w-full table-compact sm:table-normal">
                   <thead>
                     <tr className="bg-purple-50">
                       <th>No</th>

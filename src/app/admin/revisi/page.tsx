@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
+import { showSuccess, showError } from "@/lib/toast";
 
 function AdminRevisiContent() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -29,13 +30,13 @@ function AdminRevisiContent() {
       });
 
       if (res.ok) {
-        alert("Request berhasil ditandai selesai");
+        showSuccess("Request berhasil ditandai selesai");
         fetchRevisiRequests();
       } else {
-        alert("Terjadi kesalahan");
+        showError("Terjadi kesalahan");
       }
     } catch (error) {
-      alert("Terjadi kesalahan");
+      showError("Terjadi kesalahan");
       console.error(error);
     }
   };

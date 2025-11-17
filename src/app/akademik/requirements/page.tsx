@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
+import { showError } from "@/lib/toast";
 
 function RequirementInputContent() {
   const [sidangTypes, setSidangTypes] = useState<any[]>([]);
@@ -29,7 +30,7 @@ function RequirementInputContent() {
 
   const addRequirement = async () => {
     if (!newReq.name) {
-      alert("Mohon isi nama persyaratan terlebih dahulu");
+      showError("Mohon isi nama persyaratan terlebih dahulu");
       return;
     }
 

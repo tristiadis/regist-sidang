@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from "react";
+import { showSuccess, showError } from "@/lib/toast";
 
 export default function RevisiInputModal({ requestId, onClose }: { requestId: number, onClose: () => void }) {
   const [catatan, setCatatan] = useState("");
@@ -9,7 +10,7 @@ export default function RevisiInputModal({ requestId, onClose }: { requestId: nu
 
   const submitRevisi = async () => {
     if (!catatan) {
-      alert("Catatan harus diisi!");
+      showError("Catatan harus diisi!");
       return;
     }
 
@@ -23,10 +24,10 @@ export default function RevisiInputModal({ requestId, onClose }: { requestId: nu
     const res = await fetch("/api/revisi", { method: "POST", body: formData });
 
     if (res.ok) {
-      alert("✅ Catatan revisi berhasil disimpan");
+      showSuccess("Catatan revisi berhasil disimpan");
       onClose();
     } else {
-      alert("❌ Gagal menyimpan");
+      showError("Gagal menyimpan catatan revisi");
     }
     setIsSubmitting(false);
   };
