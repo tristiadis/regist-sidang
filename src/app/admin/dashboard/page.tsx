@@ -9,7 +9,11 @@ function AdminDashboardContent() {
   const [filteredRequests, setFilteredRequests] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchAllRequests();
@@ -19,18 +23,31 @@ function AdminDashboardContent() {
     // Filter logic
     let filtered = requests;
 
+    // Status filter
     if (filter !== "all") {
       filtered = filtered.filter(req => req.status === filter);
     }
 
+    // Date filter
     if (dateFilter) {
       filtered = filtered.filter(req =>
         new Date(req.createdAt).toISOString().split('T')[0] === dateFilter
       );
     }
 
+    // Search filter (name, email, NIM)
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(req =>
+        req.mahasiswa.name.toLowerCase().includes(query) ||
+        req.mahasiswa.email.toLowerCase().includes(query) ||
+        (req.mahasiswa.nim && req.mahasiswa.nim.toLowerCase().includes(query))
+      );
+    }
+
     setFilteredRequests(filtered);
-  }, [filter, dateFilter, requests]);
+    setCurrentPage(1); // Reset to page 1 when filters change
+  }, [filter, dateFilter, searchQuery, requests]);
 
   const fetchAllRequests = async () => {
     setLoading(true);
@@ -76,8 +93,20 @@ function AdminDashboardContent() {
   const deleteRequest = async (id: number) => {
     if (!confirm("Hapus request ini? Data akan di-soft-delete.")) return;
 
+    setDeletingId(id);
     await fetch(`/api/requests/${id}`, { method: "DELETE" });
-    fetchAllRequests();
+    await fetchAllRequests();
+    setDeletingId(null);
+  };
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredRequests.slice(startIndex, endIndex);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
   const totalRequests = requests.length;
@@ -93,7 +122,15 @@ function AdminDashboardContent() {
         {/* Filter Section */}
         <div className="card bg-white shadow-xl mb-6">
           <div className="card-body p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <input
+                type="text"
+                placeholder="🔍 Cari nama, email, atau NIM..."
+                className="input input-bordered input-sm sm:input-md sm:col-span-2 md:col-span-2"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+
               <select
                 className="select select-bordered select-sm sm:select-md"
                 value={filter}
@@ -114,13 +151,19 @@ function AdminDashboardContent() {
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
               />
+            </div>
 
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                Menampilkan {startIndex + 1}-{Math.min(endIndex, filteredRequests.length)} dari {filteredRequests.length} data
+                {searchQuery && ` (hasil pencarian: "${searchQuery}")`}
+              </div>
               <button
-                className="btn btn-primary bg-purple-600 btn-sm sm:btn-md sm:col-span-2 md:col-span-2"
+                className="btn btn-primary bg-purple-600 btn-sm"
                 onClick={exportExcel}
                 disabled={filteredRequests.length === 0}
               >
-                📊 Export ke Excel ({filteredRequests.length} data)
+                📊 Export Excel
               </button>
             </div>
           </div>
@@ -169,16 +212,16 @@ function AdminDashboardContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRequests.length === 0 ? (
+                    {currentItems.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="text-center py-8 text-gray-500">
-                          Tidak ada data
+                          {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Tidak ada data"}
                         </td>
                       </tr>
                     ) : (
-                      filteredRequests.map((req, idx) => (
+                      currentItems.map((req, idx) => (
                         <tr key={req.id} className="hover:bg-purple-50">
-                          <td>{idx + 1}</td>
+                          <td>{startIndex + idx + 1}</td>
                           <td>
                             <div className="font-medium">{req.mahasiswa.name}</div>
                             <div className="text-sm text-gray-500">{req.mahasiswa.email}</div>
@@ -199,8 +242,10 @@ function AdminDashboardContent() {
                             <button
                               className="btn btn-error btn-xs"
                               onClick={() => deleteRequest(req.id)}
+                              disabled={deletingId === req.id}
                             >
-                              Hapus
+                              {deletingId === req.id && <span className="loading loading-spinner loading-xs"></span>}
+                              {deletingId === req.id ? "" : "Hapus"}
                             </button>
                           </td>
                         </tr>
@@ -209,6 +254,51 @@ function AdminDashboardContent() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {filteredRequests.length > itemsPerPage && (
+                <div className="flex justify-center items-center gap-2 mt-6">
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    ← Prev
+                  </button>
+
+                  <div className="flex gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(page => {
+                        // Show first page, last page, current page, and adjacent pages
+                        return page === 1 ||
+                          page === totalPages ||
+                          Math.abs(page - currentPage) <= 1;
+                      })
+                      .map((page, idx, arr) => (
+                        <div key={page} className="flex items-center gap-1">
+                          {idx > 0 && arr[idx - 1] !== page - 1 && (
+                            <span className="text-gray-400">...</span>
+                          )}
+                          <button
+                            className={`btn btn-sm ${currentPage === page ? 'btn-primary bg-purple-600' : 'btn-ghost'
+                              }`}
+                            onClick={() => goToPage(page)}
+                          >
+                            {page}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

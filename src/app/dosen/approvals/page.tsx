@@ -11,6 +11,7 @@ function DosenApprovalContent() {
   const [requests, setRequests] = useState<any[]>([]);
   const [sidangRequests, setSidangRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<number | null>(null);
   const [showRevisiModal, setShowRevisiModal] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
 
@@ -41,6 +42,8 @@ function DosenApprovalContent() {
       return;
     }
 
+    setProcessingId(requestId);
+
     const res = await fetch("/api/approvals/action", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -53,6 +56,8 @@ function DosenApprovalContent() {
     } else {
       showError('Gagal memproses permintaan');
     }
+
+    setProcessingId(null);
   };
 
   const handleInputRevisi = (requestId: number) => {
@@ -118,13 +123,17 @@ function DosenApprovalContent() {
                     <button
                       className="btn btn-success"
                       onClick={() => handleApprove(req.id, 'approve')}
+                      disabled={processingId === req.id}
                     >
+                      {processingId === req.id && <span className="loading loading-spinner loading-sm"></span>}
                       ✅ Setuju
                     </button>
                     <button
                       className="btn btn-error"
                       onClick={() => handleApprove(req.id, 'reject')}
+                      disabled={processingId === req.id}
                     >
+                      {processingId === req.id && <span className="loading loading-spinner loading-sm"></span>}
                       ❌ Tolak
                     </button>
                   </div>

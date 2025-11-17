@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { showSuccess, showError } from "@/lib/toast";
+import FileUploadWithPreview from "@/components/FileUploadWithPreview";
 
 function MahasiswaRequestContent() {
   const [sidangTypes, setSidangTypes] = useState<any[]>([]);
@@ -76,7 +77,8 @@ function MahasiswaRequestContent() {
           });
 
           if (!uploadRes.ok) {
-            throw new Error(`Upload gagal untuk ${req.name}`);
+            const errorData = await uploadRes.json();
+            throw new Error(errorData.error || `Upload gagal untuk ${req.name}`);
           }
         }
       }
@@ -87,7 +89,8 @@ function MahasiswaRequestContent() {
       setRequirements([]);
       setFiles({});
     } catch (error: any) {
-      showError(error.message || 'Terjadi kesalahan saat submit pengajuan');
+      // Display specific error message from API or generic fallback
+      showError(error.message || 'Terjadi kesalahan saat submit pengajuan. Silakan coba lagi.');
       console.error(error);
     } finally {
       setIsSubmitting(false);
@@ -140,21 +143,14 @@ function MahasiswaRequestContent() {
                           )}
                           {req.needsFile && (
                             <div className="mt-3">
-                              <label className="label">
-                                <span className="label-text">Upload File <span className="text-red-500">*</span></span>
-                              </label>
-                              <input
-                                type="file"
-                                className="file-input file-input-bordered w-full"
-                                onChange={(e) =>
-                                  e.target.files && handleFileChange(req.id, e.target.files[0])
-                                }
+                              <FileUploadWithPreview
+                                label={`Upload ${req.name}`}
+                                required={true}
+                                maxSize={10}
+                                currentFile={files[req.id] || null}
+                                onFileSelect={(file) => handleFileChange(req.id, file)}
+                                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                               />
-                              {files[req.id] && (
-                                <p className="text-sm text-green-600 mt-1">
-                                  ✓ File terpilih: {files[req.id].name}
-                                </p>
-                              )}
                             </div>
                           )}
                         </div>
@@ -170,7 +166,8 @@ function MahasiswaRequestContent() {
               onClick={submitRequest}
               disabled={isSubmitting || requirements.length === 0}
             >
-              {isSubmitting ? "⏳ Mengirim..." : "🚀 Submit Pengajuan"}
+              {isSubmitting && <span className="loading loading-spinner loading-sm"></span>}
+              {isSubmitting ? "Mengirim..." : "🚀 Submit Pengajuan"}
             </button>
           </div>
         )}
