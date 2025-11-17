@@ -16,7 +16,7 @@ export default async function Home() {
     case "akademik":
       redirect("/akademik/requirements");
     case "dosen":
-      redirect("/dashboard/approval");
+      redirect("/dosen/approvals");
     case "mahasiswa":
       redirect("/mahasiswa/request");
     default:
