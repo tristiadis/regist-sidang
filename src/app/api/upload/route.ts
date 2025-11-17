@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
-import { join, extname } from "path";
+import { join } from "path";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import {
+  fileUploadSchema,
+  validateFile,
+  generateSecureFilePath,
+  sanitizeFilename
+} from "@/lib/fileValidation";
+import { z } from "zod";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,25 +23,26 @@ export async function POST(req: NextRequest) {
       }, { status: 401 });
     }
 
+    // 2. PARSE AND VALIDATE FORM DATA
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const requestId = formData.get("requestId") as string;
     const requirementId = formData.get("requirementId") as string;
 
-    // Validasi input
-    if (!file) {
-      return NextResponse.json({
-        error: "File tidak ditemukan. Silakan pilih file terlebih dahulu."
-      }, { status: 400 });
+    // 3. VALIDATE INPUT WITH ZOD SCHEMA
+    try {
+      fileUploadSchema.parse({ requestId, requirementId, file });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({
+          error: "Validasi input gagal",
+          details: error.errors.map(e => e.message)
+        }, { status: 400 });
+      }
+      throw error;
     }
 
-    if (!requestId || !requirementId) {
-      return NextResponse.json({
-        error: "Data request tidak lengkap. Silakan coba lagi."
-      }, { status: 400 });
-    }
-
-    // 2. AUTHORIZATION CHECK - Verify user owns the request
+    // 4. AUTHORIZATION CHECK - Verify user owns the request
     const request = await prisma.request.findUnique({
       where: { id: Number(requestId) },
       select: { mahasiswaId: true }
@@ -53,49 +61,51 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    // Validasi ukuran file (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
+    // 5. COMPREHENSIVE FILE VALIDATION (MIME type, size, extension)
+    const validationResult = await validateFile(file);
+    if (!validationResult.valid) {
       return NextResponse.json({
-        error: `File terlalu besar (${(file.size / 1024 / 1024).toFixed(2)}MB). Maksimal 10MB.`
+        error: "Validasi file gagal",
+        details: validationResult.errors
       }, { status: 400 });
     }
 
-    // Validasi tipe file
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.zip'];
-    const fileExt = extname(file.name).toLowerCase();
-    if (!allowedTypes.includes(fileExt)) {
+    // 6. GENERATE SECURE FILE PATH (prevent path traversal)
+    const baseDir = join(process.cwd(), "public", "uploads");
+    const randomSuffix = randomBytes(8).toString('hex');
+    const secureName = `${requirementId}_${randomSuffix}${validationResult.extension}`;
+
+    const pathResult = generateSecureFilePath(baseDir, requestId, secureName);
+    if (!pathResult.valid) {
       return NextResponse.json({
-        error: `Tipe file ${fileExt} tidak didukung. Gunakan: ${allowedTypes.join(', ')}`
+        error: pathResult.error || "Invalid file path"
       }, { status: 400 });
     }
 
-    // Validasi folder
-    const uploadDir = join(process.cwd(), "public", "uploads", requestId);
+    // 7. CREATE UPLOAD DIRECTORY
+    const uploadDir = join(baseDir, requestId);
     await mkdir(uploadDir, { recursive: true });
 
-    // Generate safe filename
+    // 8. SAVE FILE WITH VALIDATED CONTENT
     const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = `${requirementId}_${randomBytes(8).toString('hex')}${fileExt}`;
-    const filePath = join(uploadDir, fileName);
-
-    // Simpan file
+    const filePath = join(uploadDir, secureName);
     await writeFile(filePath, buffer);
 
-    // Simpan ke DB
+    // 9. SAVE TO DATABASE
     await prisma.requirementFulfillment.create({
       data: {
         requestId: Number(requestId),
         requirementId: Number(requirementId),
         isConfirmed: true,
-        fileUrl: `/uploads/${requestId}/${fileName}`
+        fileUrl: `/uploads/${requestId}/${secureName}`
       }
     });
 
     return NextResponse.json({
       success: true,
-      path: `/uploads/${requestId}/${fileName}`,
-      message: `File "${file.name}" berhasil diupload`
+      path: `/uploads/${requestId}/${secureName}`,
+      message: `File "${sanitizeFilename(file.name)}" berhasil diupload`,
+      fileSize: (file.size / 1024).toFixed(2) + ' KB'
     });
 
   } catch (error: any) {
