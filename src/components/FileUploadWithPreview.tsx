@@ -10,6 +10,7 @@ interface FileUploadProps {
   maxSize?: number; // in MB
   label?: string;
   required?: boolean;
+  requirementId?: string | number; // for unique IDs
 }
 
 export default function FileUploadWithPreview({
@@ -18,11 +19,16 @@ export default function FileUploadWithPreview({
   accept = "*/*",
   maxSize = 10,
   label = "Upload File",
-  required = false
+  required = false,
+  requirementId = 'default'
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Generate unique ID for accessibility
+  const inputId = `file-upload-${requirementId}`;
+  const dropzoneId = `dropzone-${requirementId}`;
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -121,40 +127,52 @@ export default function FileUploadWithPreview({
 
   return (
     <div className="w-full">
-      <label className="label">
+      <label htmlFor={inputId} className="label">
         <span className="label-text font-medium">
-          {label} {required && <span className="text-red-500">*</span>}
+          {label} {required && <span className="text-red-500" aria-label="required">*</span>}
         </span>
-        <span className="label-text-alt text-gray-500">Max {maxSize}MB</span>
+        <span className="label-text-alt text-gray-500" aria-label={`Maximum file size: ${maxSize} megabytes`}>
+          Max {maxSize}MB
+        </span>
       </label>
 
-      {/* Hidden file input */}
+      {/* Visually hidden but accessible file input */}
       <input
         ref={fileInputRef}
+        id={inputId}
         type="file"
-        className="hidden"
+        className="sr-only"
         accept={accept}
         onChange={handleFileChange}
+        aria-label={`${label} - Maximum size ${maxSize}MB - Accepted formats: ${accept}`}
+        aria-required={required}
+        aria-describedby={dropzoneId}
       />
 
       {currentFile ? (
         // File selected view
-        <div className="card bg-purple-50 border-2 border-purple-200">
+        <div
+          className="card bg-purple-50 border-2 border-purple-200"
+          role="region"
+          aria-label="Selected file information"
+        >
           <div className="card-body p-4">
             <div className="flex items-center gap-3">
               {preview ? (
                 <img
                   src={preview}
-                  alt="Preview"
+                  alt={`Preview of ${currentFile.name}`}
                   className="w-16 h-16 object-cover rounded border-2 border-purple-300"
                 />
               ) : (
-                <div className="text-4xl">{getFileIcon(currentFile.name)}</div>
+                <div className="text-4xl" aria-hidden="true">{getFileIcon(currentFile.name)}</div>
               )}
 
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{currentFile.name}</p>
-                <p className="text-xs text-gray-500">{formatFileSize(currentFile.size)}</p>
+                <p className="text-xs text-gray-500" aria-label={`File size: ${formatFileSize(currentFile.size)}`}>
+                  {formatFileSize(currentFile.size)}
+                </p>
               </div>
 
               <div className="flex gap-2">
@@ -162,17 +180,17 @@ export default function FileUploadWithPreview({
                   type="button"
                   className="btn btn-sm btn-ghost"
                   onClick={openFilePicker}
-                  title="Ganti file"
+                  aria-label="Change file - select a different file"
                 >
-                  🔄
+                  <span aria-hidden="true">🔄</span>
                 </button>
                 <button
                   type="button"
                   className="btn btn-sm btn-error"
                   onClick={handleRemove}
-                  title="Hapus file"
+                  aria-label="Remove file - clear the selected file"
                 >
-                  ✕
+                  <span aria-hidden="true">✕</span>
                 </button>
               </div>
             </div>
@@ -181,6 +199,9 @@ export default function FileUploadWithPreview({
       ) : (
         // Drag & drop zone
         <div
+          id={dropzoneId}
+          role="button"
+          tabIndex={0}
           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${isDragging
               ? 'border-purple-500 bg-purple-50'
               : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50/50'
@@ -189,8 +210,16 @@ export default function FileUploadWithPreview({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={openFilePicker}
+          onKeyDown={(e) => {
+            // Allow keyboard activation with Enter or Space
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openFilePicker();
+            }
+          }}
+          aria-label={`File upload drop zone. ${label}. Maximum size: ${maxSize}MB. Click or press Enter to select file, or drag and drop file here.`}
         >
-          <div className="text-5xl mb-3">
+          <div className="text-5xl mb-3" aria-hidden="true">
             {isDragging ? '📥' : '📤'}
           </div>
           <p className="font-medium text-gray-700 mb-1">
