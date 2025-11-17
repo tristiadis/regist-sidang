@@ -1,8 +1,13 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import * as XLSX from 'xlsx';
+import EmptyState from "@/components/EmptyState";
+import { TableSkeleton, StatsSkeleton } from "@/components/LoadingSkeleton";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { useKeyboardShortcut, SHORTCUTS } from "@/hooks/useKeyboardShortcut";
+import { getRelativeTime } from "@/lib/dateUtils";
 
 function AdminDashboardContent() {
   const [requests, setRequests] = useState<any[]>([]);
@@ -14,6 +19,9 @@ function AdminDashboardContent() {
   const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { confirm, ConfirmDialogComponent } = useConfirm();
 
   useEffect(() => {
     fetchAllRequests();
@@ -91,7 +99,15 @@ function AdminDashboardContent() {
   };
 
   const deleteRequest = async (id: number) => {
-    if (!confirm("Hapus request ini? Data akan di-soft-delete.")) return;
+    const confirmed = await confirm({
+      title: "Hapus Request?",
+      message: "Data akan di-soft-delete dan dapat dipulihkan oleh administrator.",
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      confirmColor: "error"
+    });
+
+    if (!confirmed) return;
 
     setDeletingId(id);
     await fetch(`/api/requests/${id}`, { method: "DELETE" });
@@ -109,6 +125,39 @@ function AdminDashboardContent() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
+  // Keyboard shortcuts
+  useKeyboardShortcut([
+    {
+      ...SHORTCUTS.SEARCH,
+      callback: () => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    },
+    {
+      ...SHORTCUTS.NEXT_PAGE,
+      callback: () => {
+        if (currentPage < totalPages) {
+          goToPage(currentPage + 1);
+        }
+      }
+    },
+    {
+      ...SHORTCUTS.PREV_PAGE,
+      callback: () => {
+        if (currentPage > 1) {
+          goToPage(currentPage - 1);
+        }
+      }
+    },
+    {
+      ...SHORTCUTS.REFRESH,
+      callback: (e) => {
+        fetchAllRequests();
+      }
+    }
+  ]);
+
   const totalRequests = requests.length;
   const sidangBerlangsung = requests.filter(r => r.status === "sidang_berlangsung").length;
   const selesai = requests.filter(r => r.status === "done").length;
@@ -123,13 +172,16 @@ function AdminDashboardContent() {
         <div className="card bg-white shadow-xl mb-6">
           <div className="card-body p-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-              <input
-                type="text"
-                placeholder="🔍 Cari nama, email, atau NIM..."
-                className="input input-bordered input-sm sm:input-md sm:col-span-2 md:col-span-2"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <div className="relative sm:col-span-2 md:col-span-2">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="🔍 Cari nama, email, atau NIM... (Ctrl+K)"
+                  className="input input-bordered input-sm sm:input-md w-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
 
               <select
                 className="select select-bordered select-sm sm:select-md"
@@ -170,29 +222,49 @@ function AdminDashboardContent() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
-            <div className="stat-title text-xs">Total Request</div>
-            <div className="stat-value text-purple-600 text-2xl sm:text-3xl">{totalRequests}</div>
+        {loading ? (
+          <StatsSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6 animate-slide-in-up">
+            <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
+              <div className="stat-title text-xs">Total Request</div>
+              <div className="stat-value text-purple-600 text-2xl sm:text-3xl">{totalRequests}</div>
+            </div>
+            <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
+              <div className="stat-title text-xs">Sidang Berlangsung</div>
+              <div className="stat-value text-yellow-600 text-2xl sm:text-3xl">{sidangBerlangsung}</div>
+            </div>
+            <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
+              <div className="stat-title text-xs">Selesai</div>
+              <div className="stat-value text-green-600 text-2xl sm:text-3xl">{selesai}</div>
+            </div>
+            <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
+              <div className="stat-title text-xs">Ditolak</div>
+              <div className="stat-value text-red-600 text-2xl sm:text-3xl">{ditolak}</div>
+            </div>
           </div>
-          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
-            <div className="stat-title text-xs">Sidang Berlangsung</div>
-            <div className="stat-value text-yellow-600 text-2xl sm:text-3xl">{sidangBerlangsung}</div>
-          </div>
-          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
-            <div className="stat-title text-xs">Selesai</div>
-            <div className="stat-value text-green-600 text-2xl sm:text-3xl">{selesai}</div>
-          </div>
-          <div className="stat bg-white shadow-xl rounded-lg p-3 sm:p-4">
-            <div className="stat-title text-xs">Ditolak</div>
-            <div className="stat-value text-red-600 text-2xl sm:text-3xl">{ditolak}</div>
-          </div>
-        </div>
+        )}
 
         {/* Requests List */}
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <span className="loading loading-spinner loading-lg text-purple-600"></span>
+          <div className="card bg-white shadow-xl">
+            <div className="card-body p-2 sm:p-6">
+              <TableSkeleton rows={10} />
+            </div>
+          </div>
+        ) : currentItems.length === 0 ? (
+          <div className="card bg-white shadow-xl">
+            <div className="card-body">
+              <EmptyState
+                icon={searchQuery ? "🔍" : "📭"}
+                title={searchQuery ? "Tidak ada hasil" : "Belum ada data"}
+                description={
+                  searchQuery
+                    ? `Tidak ditemukan hasil untuk "${searchQuery}". Coba kata kunci lain.`
+                    : "Belum ada pengajuan sidang yang masuk. Data akan muncul ketika mahasiswa mengajukan sidang."
+                }
+              />
+            </div>
           </div>
         ) : (
           <div className="card bg-white shadow-xl">
@@ -236,7 +308,16 @@ function AdminDashboardContent() {
                               {req.status.replace('_', ' ').toUpperCase()}
                             </span>
                           </td>
-                          <td>{new Date(req.createdAt).toLocaleDateString('id-ID')}</td>
+                          <td>
+                            <div className="tooltip" data-tip={new Date(req.createdAt).toLocaleDateString('id-ID', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}>
+                              <span className="text-sm">{getRelativeTime(req.createdAt)}</span>
+                            </div>
+                          </td>
                           <td>{req.currentStep?.role || "-"}</td>
                           <td>
                             <button
@@ -302,7 +383,20 @@ function AdminDashboardContent() {
             </div>
           </div>
         )}
+
+        {/* Keyboard Shortcuts Help */}
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg p-3 text-xs hidden lg:block">
+          <div className="font-semibold mb-1">⌨️ Shortcuts</div>
+          <div className="space-y-1 text-gray-600">
+            <div><kbd className="kbd kbd-xs">Ctrl</kbd> + <kbd className="kbd kbd-xs">K</kbd> - Search</div>
+            <div><kbd className="kbd kbd-xs">Ctrl</kbd> + <kbd className="kbd kbd-xs">←</kbd> - Prev Page</div>
+            <div><kbd className="kbd kbd-xs">Ctrl</kbd> + <kbd className="kbd kbd-xs">→</kbd> - Next Page</div>
+            <div><kbd className="kbd kbd-xs">Ctrl</kbd> + <kbd className="kbd kbd-xs">R</kbd> - Refresh</div>
+          </div>
+        </div>
       </div>
+
+      <ConfirmDialogComponent />
     </div>
   );
 }

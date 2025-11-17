@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { AuthGuard } from "@/components/AuthGuard";
+import EmptyState from "@/components/EmptyState";
+import { CardSkeleton, TimelineSkeleton } from "@/components/LoadingSkeleton";
+import { getRelativeTime } from "@/lib/dateUtils";
 
 function MahasiswaTrackerContent() {
   const { data: session } = useSession();
@@ -55,36 +58,42 @@ function MahasiswaTrackerContent() {
         <h1 className="text-3xl font-bold text-purple-600 mb-6">📍 Status Tracking Pengajuan Sidang</h1>
 
         {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <span className="loading loading-spinner loading-lg text-purple-600"></span>
+          <CardSkeleton count={2} />
+        ) : requests.length === 0 ? (
+          <div className="card bg-white shadow-xl">
+            <div className="card-body">
+              <EmptyState
+                icon="📋"
+                title="Belum ada pengajuan sidang"
+                description="Anda belum pernah mengajukan sidang. Ajukan sidang Anda sekarang untuk memulai proses."
+                action={{
+                  label: "📤 Ajukan Sidang",
+                  href: "/mahasiswa/request"
+                }}
+              />
+            </div>
           </div>
         ) : (
           <div className="space-y-6">
-            {requests.length === 0 ? (
-              <div className="card bg-white shadow-xl">
-                <div className="card-body text-center py-12">
-                  <p className="text-gray-500 text-lg">Anda belum memiliki pengajuan sidang</p>
-                  <p className="text-sm text-gray-400 mt-2">Silakan ajukan sidang terlebih dahulu</p>
-                  <a href="/mahasiswa/request" className="btn btn-primary bg-purple-600 mt-4">
-                    📤 Ajukan Sidang
-                  </a>
-                </div>
-              </div>
-            ) : (
+            {(
               requests.map(req => (
                 <div key={req.id} className="card bg-white shadow-xl">
                   <div className="card-body">
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h2 className="card-title text-purple-600 text-2xl">{req.sidangType.name}</h2>
-                        <p className="text-sm text-gray-500">
-                          Diajukan: {new Date(req.createdAt).toLocaleDateString('id-ID', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </p>
+                        <div className="tooltip" data-tip={new Date(req.createdAt).toLocaleDateString('id-ID', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}>
+                          <p className="text-sm text-gray-500">
+                            Diajukan {getRelativeTime(req.createdAt)}
+                          </p>
+                        </div>
                       </div>
                       <div>{getStatusBadge(req.status)}</div>
                     </div>
