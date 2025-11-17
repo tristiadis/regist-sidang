@@ -12,16 +12,27 @@ import {
   sanitizeFilename
 } from "@/lib/fileValidation";
 import { z } from "zod";
+import { successResponse, errorResponse, ApiErrorCode } from "@/lib/apiResponse";
+import { logger, createRequestContext, PerformanceTimer } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
+  const timer = new PerformanceTimer();
+  const requestContext = createRequestContext(req);
+
   try {
+    logger.apiRequest('POST', '/api/upload', requestContext);
+
     // 1. AUTHENTICATION CHECK (CRITICAL!)
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({
-        error: "Unauthorized - Please login to upload files"
-      }, { status: 401 });
+      logger.security('unauthorized_access', requestContext);
+      return errorResponse(
+        "Unauthorized - Please login to upload files",
+        ApiErrorCode.UNAUTHORIZED
+      );
     }
+
+    requestContext.userId = session.user.id;
 
     // 2. PARSE AND VALIDATE FORM DATA
     const formData = await req.formData();
@@ -34,10 +45,15 @@ export async function POST(req: NextRequest) {
       fileUploadSchema.parse({ requestId, requirementId, file });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return NextResponse.json({
-          error: "Validasi input gagal",
-          details: error.errors.map(e => e.message)
-        }, { status: 400 });
+        logger.warn('File upload validation failed', {
+          ...requestContext,
+          errors: error.errors.map(e => e.message)
+        });
+        return errorResponse(
+          "Validasi input gagal",
+          ApiErrorCode.VALIDATION_ERROR,
+          { details: error.errors.map(e => e.message) }
+        );
       }
       throw error;
     }
@@ -49,25 +65,44 @@ export async function POST(req: NextRequest) {
     });
 
     if (!request) {
-      return NextResponse.json({
-        error: "Request tidak ditemukan"
-      }, { status: 404 });
+      logger.warn('Request not found for file upload', {
+        ...requestContext,
+        requestId
+      });
+      return errorResponse(
+        "Request tidak ditemukan",
+        ApiErrorCode.NOT_FOUND
+      );
     }
 
     // Only mahasiswa can upload files for their own request
     if (session.user.role === 'mahasiswa' && request.mahasiswaId !== Number(session.user.id)) {
-      return NextResponse.json({
-        error: "Anda tidak memiliki izin untuk mengupload file pada request ini"
-      }, { status: 403 });
+      logger.security('unauthorized_access', {
+        ...requestContext,
+        requestId,
+        reason: 'Attempting to upload file for another user\'s request'
+      });
+      return errorResponse(
+        "Anda tidak memiliki izin untuk mengupload file pada request ini",
+        ApiErrorCode.FORBIDDEN
+      );
     }
 
     // 5. COMPREHENSIVE FILE VALIDATION (MIME type, size, extension)
     const validationResult = await validateFile(file);
     if (!validationResult.valid) {
-      return NextResponse.json({
-        error: "Validasi file gagal",
-        details: validationResult.errors
-      }, { status: 400 });
+      logger.warn('File validation failed', {
+        ...requestContext,
+        requestId,
+        fileName: file.name,
+        fileSize: file.size,
+        errors: validationResult.errors
+      });
+      return errorResponse(
+        "Validasi file gagal",
+        ApiErrorCode.VALIDATION_ERROR,
+        { details: validationResult.errors }
+      );
     }
 
     // 6. GENERATE SECURE FILE PATH (prevent path traversal)
@@ -77,9 +112,16 @@ export async function POST(req: NextRequest) {
 
     const pathResult = generateSecureFilePath(baseDir, requestId, secureName);
     if (!pathResult.valid) {
-      return NextResponse.json({
-        error: pathResult.error || "Invalid file path"
-      }, { status: 400 });
+      logger.warn('Invalid file path generated', {
+        ...requestContext,
+        requestId,
+        secureName,
+        error: pathResult.error
+      });
+      return errorResponse(
+        pathResult.error || "Invalid file path",
+        ApiErrorCode.VALIDATION_ERROR
+      );
     }
 
     // 7. CREATE UPLOAD DIRECTORY
@@ -89,7 +131,15 @@ export async function POST(req: NextRequest) {
     // 8. SAVE FILE WITH VALIDATED CONTENT
     const buffer = Buffer.from(await file.arrayBuffer());
     const filePath = join(uploadDir, secureName);
+    const fileWriteTimer = new PerformanceTimer();
     await writeFile(filePath, buffer);
+
+    logger.fileOperation('upload', secureName, file.size, {
+      ...requestContext,
+      requestId,
+      requirementId,
+      duration: fileWriteTimer.elapsed()
+    });
 
     // 9. SAVE TO DATABASE
     await prisma.requirementFulfillment.create({
@@ -101,31 +151,46 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({
-      success: true,
-      path: `/uploads/${requestId}/${secureName}`,
-      message: `File "${sanitizeFilename(file.name)}" berhasil diupload`,
-      fileSize: (file.size / 1024).toFixed(2) + ' KB'
+    const fileSizeKB = (file.size / 1024).toFixed(2);
+    const duration = timer.elapsed();
+
+    logger.apiResponse('POST', '/api/upload', 200, duration, {
+      ...requestContext,
+      requestId,
+      fileName: secureName,
+      fileSize: fileSizeKB + ' KB'
     });
 
+    return successResponse({
+      path: `/uploads/${requestId}/${secureName}`,
+      fileName: sanitizeFilename(file.name),
+      fileSize: fileSizeKB + ' KB'
+    }, `File "${sanitizeFilename(file.name)}" berhasil diupload`);
+
   } catch (error: any) {
-    console.error("Upload error:", error);
+    logger.error('File upload error', error, {
+      ...requestContext,
+      errorCode: error.code
+    });
 
     // Error messages yang lebih spesifik
     if (error.code === 'ENOSPC') {
-      return NextResponse.json({
-        error: "Ruang penyimpanan server penuh. Hubungi administrator."
-      }, { status: 500 });
+      return errorResponse(
+        "Ruang penyimpanan server penuh. Hubungi administrator.",
+        ApiErrorCode.INTERNAL_ERROR
+      );
     }
 
     if (error.code === 'EACCES') {
-      return NextResponse.json({
-        error: "Tidak memiliki izin untuk menyimpan file. Hubungi administrator."
-      }, { status: 500 });
+      return errorResponse(
+        "Tidak memiliki izin untuk menyimpan file. Hubungi administrator.",
+        ApiErrorCode.INTERNAL_ERROR
+      );
     }
 
-    return NextResponse.json({
-      error: `Upload gagal: ${error.message || 'Terjadi kesalahan server'}`
-    }, { status: 500 });
+    return errorResponse(
+      `Upload gagal: ${error.message || 'Terjadi kesalahan server'}`,
+      ApiErrorCode.INTERNAL_ERROR
+    );
   }
 }

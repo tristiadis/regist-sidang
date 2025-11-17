@@ -21,6 +21,7 @@ model User {
   requirementFulfills RequirementFulfillment[] @relation("ConfirmUser")
   revisiNotes        RevisiNote[] @relation("DosenRevisi")
 
+  @@index([role]) // Optimize RBAC queries
   @@map("users")
 }
 
@@ -66,6 +67,9 @@ model Requirement {
   sidangType SidangType @relation(fields: [sidangTypeId], references: [id], onDelete: Cascade)
   fulfillments RequirementFulfillment[]
 
+  // Performance indexes
+  @@index([role]) // Optimize role-based requirement queries
+  @@index([sidangTypeId]) // Optimize sidang type queries
   @@map("requirements")
 }
 
@@ -86,6 +90,13 @@ model Request {
   fulfillments   RequirementFulfillment[]
   revisiNotes    RevisiNote[]
 
+  // Performance indexes
+  @@index([mahasiswaId]) // Optimize student-owned request queries
+  @@index([status]) // Optimize status filtering
+  @@index([sidangTypeId]) // Optimize sidang type queries
+  @@index([currentStepId]) // Optimize current step lookups
+  @@index([createdAt]) // Optimize sorting by creation date
+  @@index([mahasiswaId, status]) // Optimize student dashboard queries
   @@map("requests")
 }
 
@@ -103,6 +114,10 @@ model RequirementFulfillment {
   requirement Requirement @relation(fields: [requirementId], references: [id])
   confirmer   User? @relation("ConfirmUser", fields: [confirmedBy], references: [id])
 
+  // Performance indexes
+  @@index([requestId]) // Optimize request fulfillment queries
+  @@index([requirementId]) // Optimize requirement-based queries
+  @@index([confirmedBy]) // Optimize confirmer queries
   @@map("requirement_fulfillments")
 }
 
@@ -114,12 +129,19 @@ model Approval {
   action     String   // 'approve', 'reject'
   notes      String?
   createdAt  DateTime @default(now()) @map("created_at")
+  approvedAt DateTime? @map("approved_at")
 
   // Relations
   request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   step      WorkflowStep @relation(fields: [stepId], references: [id])
   approver  User @relation(fields: [approvedBy], references: [id])
 
+  // Performance indexes
+  @@index([requestId]) // Optimize request approval queries
+  @@index([approvedBy]) // Optimize dosen-assigned approval queries (RBAC)
+  @@index([stepId]) // Optimize step-based queries
+  @@index([createdAt]) // Optimize sorting by creation date
+  @@index([requestId, stepId, approvedBy]) // Optimize authorization checks
   @@map("approvals")
 }
 
@@ -135,5 +157,9 @@ model RevisiNote {
   request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   dosen   User @relation("DosenRevisi", fields: [dosenId], references: [id])
 
+  // Performance indexes
+  @@index([requestId]) // Optimize request revision queries
+  @@index([dosenId]) // Optimize dosen revision queries
+  @@index([createdAt]) // Optimize sorting by creation date
   @@map("revisi_notes")
 }
