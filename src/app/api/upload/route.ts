@@ -3,9 +3,19 @@ import { writeFile, mkdir } from "fs/promises";
 import { join, extname } from "path";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. AUTHENTICATION CHECK (CRITICAL!)
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({
+        error: "Unauthorized - Please login to upload files"
+      }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const requestId = formData.get("requestId") as string;
@@ -22,6 +32,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: "Data request tidak lengkap. Silakan coba lagi."
       }, { status: 400 });
+    }
+
+    // 2. AUTHORIZATION CHECK - Verify user owns the request
+    const request = await prisma.request.findUnique({
+      where: { id: Number(requestId) },
+      select: { mahasiswaId: true }
+    });
+
+    if (!request) {
+      return NextResponse.json({
+        error: "Request tidak ditemukan"
+      }, { status: 404 });
+    }
+
+    // Only mahasiswa can upload files for their own request
+    if (session.user.role === 'mahasiswa' && request.mahasiswaId !== Number(session.user.id)) {
+      return NextResponse.json({
+        error: "Anda tidak memiliki izin untuk mengupload file pada request ini"
+      }, { status: 403 });
     }
 
     // Validasi ukuran file (max 10MB)
